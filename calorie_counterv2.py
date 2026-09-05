@@ -78,7 +78,9 @@ class CalorieCounter(tk.Tk):
         back_frame.pack(fill=tk.X, padx=5, pady=(0, 10))
         tk.Button(back_frame, text="← Back", command=self.back_to_calendar).pack(side=tk.LEFT)
 
-        tk.Label(self.counter_container, text="Add Record", font=("Segoe UI", 12, "bold")).pack()
+        # Title showing the currently selected date (replaces the static "Add Record")
+        self.details_title = tk.Label(self.counter_container, text="", font=("Segoe UI", 12, "bold"))
+        self.details_title.pack()
 
         # Total display for selected day
         self.total_label = tk.Label(self.counter_container, text="Select a day", font=("Segoe UI", 16), padx=10, pady=10)
@@ -101,8 +103,9 @@ class CalorieCounter(tk.Tk):
         # Custom entry and +/- buttons
         entry_frame = tk.Frame(self.counter_container)
         entry_frame.pack()
-        self.custom_entry = tk.Entry(entry_frame, width=10, justify="center")
-        self.custom_entry.pack(side=tk.LEFT, padx=3, pady=3)
+        # Increase entry vertical padding so height matches buttons better
+        self.custom_entry = tk.Entry(entry_frame, width=10, justify="center", font=("Segoe UI", 10))
+        self.custom_entry.pack(side=tk.LEFT, padx=3, pady=3, ipady=6)
         self.custom_entry.insert(0, "0")
         tk.Button(entry_frame, text="+", width=8, height=2, command=self.add_custom).pack(side=tk.LEFT, padx=3, pady=3)
         tk.Button(entry_frame, text="-", width=8, height=2, command=self.subtract_custom).pack(side=tk.LEFT, padx=3, pady=3)
@@ -122,7 +125,8 @@ class CalorieCounter(tk.Tk):
         tk.Frame(self.history_container, height=1, bg="gray").pack(fill=tk.X, padx=5, pady=1)
 
         # Scrollable history
-        self.history_canvas = tk.Canvas(self.history_container, height=300, width=250, highlightthickness=0, bg="white")
+        # Remove fixed width so header and records use same available width
+        self.history_canvas = tk.Canvas(self.history_container, height=300, highlightthickness=0, bg="white")
         scrollbar = tk.Scrollbar(self.history_container, orient="vertical", command=self.history_canvas.yview)
         self.history_scrollable_frame = tk.Frame(self.history_canvas, bg="white")
 
@@ -143,6 +147,10 @@ class CalorieCounter(tk.Tk):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.build_calendar()
+
+        # Open the app showing today's details by default
+        # This will hide the calendar and show counter+history for today
+        self.select_date(self.current_date)
 
     def hide_counter_and_history(self):
         """Hide counter and history sections when no date is selected"""
@@ -224,17 +232,29 @@ class CalorieCounter(tk.Tk):
                     )
                     font_weight = "bold" if has_records else "normal"
 
-                    btn = tk.Button(
-                        week_frame,
-                        text=f"{day}\n{day_total}",
-                        width=5,
-                        height=3,
-                        bg=bg_color,
-                        fg=fg_color,
-                        font=("Segoe UI", 8, font_weight),
-                        command=lambda d=date_obj: self.select_date(d)
-                    )
-                    btn.pack(side=tk.LEFT, padx=1, pady=1)
+                    # Create a canvas with an oval to simulate circular day cells
+                    size = 44
+                    day_canvas = tk.Canvas(week_frame, width=size, height=size, highlightthickness=0, bg=self.cal_frame.cget('bg'))
+
+                    # Choose fill color for circle
+                    fill = bg_color
+                    outline = "#d0d0d0"
+                    # Draw circle
+                    pad = 4
+                    day_canvas.create_oval(pad, pad, size - pad, size - pad, fill=fill, outline=outline)
+
+                    # Day number (top)
+                    day_canvas.create_text(size/2, size*0.35, text=str(day), fill=fg_color, font=("Segoe UI", 9, font_weight))
+
+                    # Calories (bottom) - show sign and space a bit
+                    sign = "+" if day_total > 0 else "" if day_total == 0 else ""
+                    cal_text = f"{sign}{day_total}" if day_total != 0 else ""
+                    day_canvas.create_text(size/2, size*0.73, text=cal_text, fill="green" if day_total>0 else ("red" if day_total<0 else "#666"), font=("Segoe UI", 8))
+
+                    # Click binding
+                    day_canvas.bind("<Button-1>", lambda e, d=date_obj: self.select_date(d))
+
+                    day_canvas.pack(side=tk.LEFT, padx=4, pady=4)
 
     def prev_month(self):
         """Navigate to previous month"""
@@ -253,6 +273,12 @@ class CalorieCounter(tk.Tk):
         self.selected_date = date_obj
         self.hide_calendar()
         self.show_counter_and_history()
+        # Update the details title to show the full current date being viewed
+        try:
+            pretty = self.selected_date.strftime("%A, %d %b %Y")
+        except Exception:
+            pretty = str(self.selected_date)
+        self.details_title.config(text=pretty)
         self.total_label.config(text=self._format_total())
         self.update_history_display()
 
